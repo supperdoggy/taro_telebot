@@ -40,9 +40,9 @@ func main() {
 
 		res := telebot.Photo{
 			File:    telebot.FromReader(bytes.NewReader(taro.Pic.Data)),
-			Caption: fmt.Sprintf("Карта дня: %s\n\nПредсказание на день: %s\nПредостережение дня: %s", taro.Loc.Value, taro.Advice.Value, taro.Warning.Value),
+			Caption: fmt.Sprintf("*Карта дня*: %s\n\n*Совет дня*: %s\n\n*Предостережение дня*: %s", taro.Loc.Value, taro.Advice.Value, taro.Warning.Value),
 		}
-		m, err = bot.Reply(m, &res)
+		m, err = bot.Reply(m, &res, telebot.ModeMarkdown)
 		if err != nil {
 			logger.Error("error sending", zap.Error(err))
 		}
