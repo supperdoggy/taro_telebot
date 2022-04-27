@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"github.com/supperdoggy/taro-pizda/bot/internal/config"
 	db2 "github.com/supperdoggy/taro-pizda/bot/internal/db"
+	handlers2 "github.com/supperdoggy/taro-pizda/bot/internal/handlers"
+	service2 "github.com/supperdoggy/taro-pizda/bot/internal/service"
 	"go.uber.org/zap"
 	"gopkg.in/tucnak/telebot.v2"
 	"time"
@@ -16,10 +16,14 @@ func main() {
 	cfg := config.GetConfig()
 	ctx := context.Background()
 
-	db, err := db2.NewDB(logger, cfg.DBUrl, cfg.DBName, cfg.WarningCollectionName, cfg.AdviceCollectionName, cfg.PicCollectionName, cfg.RuLocCollectionName, ctx)
+	db, err := db2.NewDB(logger, cfg.DBUrl, cfg.DBName,
+		cfg.WarningCollectionName, cfg.AdviceCollectionName,
+		cfg.PicCollectionName, cfg.RuLocCollectionName, cfg.DailyTaroCollectionName, ctx)
 	if err != nil {
 		logger.Fatal("error setting db", zap.Error(err), zap.Any("cfg", cfg))
 	}
+	service := service2.NewService(&db, logger)
+	handlers := handlers2.NewHandlers(&service, logger)
 
 	bot, err := telebot.NewBot(telebot.Settings{
 		Token: cfg.Token,
@@ -28,25 +32,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("error connecting to bot", zap.Error(err))
 	}
-
-	bot.Handle("/start", func(m *telebot.Message) {
-		ctx := context.Background()
-		taro, err := db.GetRandomTaro(ctx)
-		if err != nil {
-			logger.Error("error getting taro card", zap.Error(err))
-			bot.Reply(m, "error")
-			return
-		}
-
-		res := telebot.Photo{
-			File:    telebot.FromReader(bytes.NewReader(taro.Pic.Data)),
-			Caption: fmt.Sprintf("*Карта дня*: %s\n\n*Совет дня*: %s\n\n*Предостережение дня*: %s", taro.Loc.Value, taro.Advice.Value, taro.Warning.Value),
-		}
-		m, err = bot.Reply(m, &res, telebot.ModeMarkdown)
-		if err != nil {
-			logger.Error("error sending", zap.Error(err))
-		}
-	})
+	bot.Handle("/start", handlers.GetRandomDailyTaro)
 
 
 	bot.Start()

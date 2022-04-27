@@ -15,6 +15,7 @@ type appConfig struct {
 	AdviceCollectionName  string `json:"advice_collection_name"`
 	PicCollectionName     string `json:"pic_collection_name"`
 	RuLocCollectionName   string `json:"ru_loc_collection_name"`
+	DailyTaroCollectionName string `json:"daily_taro_collection_name"`
 
 	IsProd bool `json:"is_prod"`
 	Token string `json:"token"`

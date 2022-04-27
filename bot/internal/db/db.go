@@ -5,21 +5,25 @@ import (
 	"github.com/supperdoggy/taro-pizda/structs"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
+	"gopkg.in/mgo.v2/bson"
 	"strings"
+	"time"
 )
 
 type IDB interface {
 	GetRandomTaro(ctx context.Context) (taro structs.Taro, err error)
 	GetTaro(ctx context.Context, id string) (taro structs.Taro, err error)
+	SaveDailyTaro(cardID string, userID int64, ctx context.Context) error
 }
 
 type db struct {
 	session *mongo.Client
 
-	warningCol *mongo.Collection
-	adviceCol  *mongo.Collection
-	ruLocCol   *mongo.Collection
-	picCol     *mongo.Collection
+	warningCol  *mongo.Collection
+	adviceCol   *mongo.Collection
+	ruLocCol    *mongo.Collection
+	picCol      *mongo.Collection
+	dailyTaroCol *mongo.Collection
 
 	logger *zap.Logger
 }
@@ -27,7 +31,7 @@ type db struct {
 type obj map[string]interface{}
 type arr []interface{}
 
-func NewDB(l *zap.Logger, url, dbName, warningCol, adviceCol, picCol, ruLocCol string, ctx context.Context) (IDB, error) {
+func NewDB(l *zap.Logger, url, dbName, warningCol, adviceCol, picCol, ruLocCol, dalyTaro string, ctx context.Context) (IDB, error) {
 	session, err := mongo.Connect(ctx)
 	if err != nil {
 		return nil, err
@@ -41,6 +45,7 @@ func NewDB(l *zap.Logger, url, dbName, warningCol, adviceCol, picCol, ruLocCol s
 		adviceCol:  session.Database(dbName).Collection(adviceCol),
 		picCol:     session.Database(dbName).Collection(picCol),
 		ruLocCol:   session.Database(dbName).Collection(ruLocCol),
+		dailyTaroCol: session.Database(dbName).Collection(dalyTaro),
 	}
 
 	return &d, nil
@@ -179,6 +184,49 @@ func (d *db) GetTaroLoc(ctx context.Context, id string) (pic structs.TaroLoc, er
 			return
 		}
 		break
+	}
+
+	return
+}
+
+func (d *db) SaveDailyTaro(cardID string, userID int64, ctx context.Context) error {
+	_, err := d.GetSavedDailyTaro(userID, ctx)
+	if err != nil && err != mongo.ErrNoDocuments {
+		d.logger.Error("error getting saved daily taro", zap.Error(err))
+		return err
+	}
+
+	if err == mongo.ErrNoDocuments {
+		_, err := d.dailyTaroCol.InsertOne(ctx, structs.DailyTaro{
+			UserID:    userID,
+			CardID:    cardID,
+			CreatedAt: time.Now(),
+		})
+		if err != nil {
+			d.logger.Error("error inserting daily taro save", zap.Error(err))
+			return err
+		}
+		return nil
+	}
+
+	update := bson.D{{"$set", bson.D{{"card_id", cardID}, {"created_at", time.Now()}}}}
+	_, err = d.dailyTaroCol.UpdateOne(ctx, obj{"user_id": userID}, update)
+	if err != nil {
+		d.logger.Error("error saving daily taro", zap.Error(err))
+	}
+	return err
+}
+
+func (d *db) GetSavedDailyTaro(userID int64, ctx context.Context) (res structs.DailyTaro, err error) {
+	cur, err := d.dailyTaroCol.Find(ctx, obj{"user_id": userID})
+	if err != nil {
+		d.logger.Error("error finding saved daily taro", zap.Error(err), zap.Any("user_id", userID))
+		return structs.DailyTaro{}, err
+	}
+
+	for cur.Next(ctx) {
+		err = cur.Decode(&res)
+		return
 	}
 
 	return
