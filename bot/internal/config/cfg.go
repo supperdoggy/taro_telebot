@@ -37,6 +37,10 @@ func init() {
 		panic(err.Error())
 	}
 
+	if config.Token == "" {
+		panic("token empty")
+	}
+
 }
 
 func GetConfig() appConfig {

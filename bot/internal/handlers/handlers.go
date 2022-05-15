@@ -32,5 +32,8 @@ func (h *handlers) GetRandomDailyTaro(m *telebot.Message) {
 		return
 	}
 
-	h.bot.Reply(m, result)
+	m, err = h.bot.Reply(m, result)
+	if err != nil {
+		h.logger.Error("error replying", zap.Error(err), zap.Any("taro", result))
+	}
 }

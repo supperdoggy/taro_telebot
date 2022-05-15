@@ -5,7 +5,7 @@ import (
 	"github.com/supperdoggy/taro-pizda/structs"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
-	"gopkg.in/mgo.v2/bson"
+
 	"strings"
 	"time"
 )
@@ -190,13 +190,14 @@ func (d *db) GetTaroLoc(ctx context.Context, id string) (pic structs.TaroLoc, er
 }
 
 func (d *db) SaveDailyTaro(cardID string, userID int64, ctx context.Context) error {
-	_, err := d.GetSavedDailyTaro(userID, ctx)
+	taro, err := d.GetSavedDailyTaro(userID, ctx)
 	if err != nil && err != mongo.ErrNoDocuments {
 		d.logger.Error("error getting saved daily taro", zap.Error(err))
 		return err
 	}
 
-	if err == mongo.ErrNoDocuments {
+
+	if taro.UserID == 0 {
 		_, err := d.dailyTaroCol.InsertOne(ctx, structs.DailyTaro{
 			UserID:    userID,
 			CardID:    cardID,
@@ -209,12 +210,12 @@ func (d *db) SaveDailyTaro(cardID string, userID int64, ctx context.Context) err
 		return nil
 	}
 
-	update := bson.D{{"$set", bson.D{{"card_id", cardID}, {"created_at", time.Now()}}}}
-	_, err = d.dailyTaroCol.UpdateOne(ctx, obj{"user_id": userID}, update)
-	if err != nil {
-		d.logger.Error("error saving daily taro", zap.Error(err))
+	update := obj{"$set": obj{"card_id": cardID, "created_at": time.Now()}}
+	cur := d.dailyTaroCol.FindOneAndUpdate(ctx, obj{"user_id": userID}, update)
+	if cur.Err() != nil {
+		d.logger.Error("error saving daily taro", zap.Error(cur.Err()))
 	}
-	return err
+	return cur.Err()
 }
 
 func (d *db) GetSavedDailyTaro(userID int64, ctx context.Context) (res structs.DailyTaro, err error) {

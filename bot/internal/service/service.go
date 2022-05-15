@@ -10,7 +10,7 @@ import (
 )
 
 type IService interface {
-	DailyTaro(userID int64) (interface{}, error)
+	DailyTaro(userID int64) (*telebot.Photo, error)
 }
 
 type service struct {
@@ -25,7 +25,7 @@ func NewService(d *db2.IDB, l *zap.Logger) IService {
 	}
 }
 
-func (s *service) DailyTaro(userID int64) (interface{}, error) {
+func (s *service) DailyTaro(userID int64) (*telebot.Photo, error) {
 	ctx := context.Background()
 	taro, err := s.db.GetRandomTaro(ctx)
 	if err != nil {
@@ -44,5 +44,5 @@ func (s *service) DailyTaro(userID int64) (interface{}, error) {
 		return nil, err
 	}
 
-	return res, nil
+	return &res, nil
 }
