@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+
 	"github.com/supperdoggy/taro-pizda/structs"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
@@ -14,15 +15,17 @@ type IDB interface {
 	GetRandomTaro(ctx context.Context) (taro structs.Taro, err error)
 	GetTaro(ctx context.Context, id string) (taro structs.Taro, err error)
 	SaveDailyTaro(cardID string, userID int64, ctx context.Context) error
+	CanGetNewDailyTaro(ctx context.Context, userID int64) bool
+	GetSavedDailyTaro(userID int64, ctx context.Context) (res structs.DailyTaro, err error)
 }
 
 type db struct {
 	session *mongo.Client
 
-	warningCol  *mongo.Collection
-	adviceCol   *mongo.Collection
-	ruLocCol    *mongo.Collection
-	picCol      *mongo.Collection
+	warningCol   *mongo.Collection
+	adviceCol    *mongo.Collection
+	ruLocCol     *mongo.Collection
+	picCol       *mongo.Collection
 	dailyTaroCol *mongo.Collection
 
 	logger *zap.Logger
@@ -41,10 +44,10 @@ func NewDB(l *zap.Logger, url, dbName, warningCol, adviceCol, picCol, ruLocCol, 
 		session: session,
 		logger:  l,
 
-		warningCol: session.Database(dbName).Collection(warningCol),
-		adviceCol:  session.Database(dbName).Collection(adviceCol),
-		picCol:     session.Database(dbName).Collection(picCol),
-		ruLocCol:   session.Database(dbName).Collection(ruLocCol),
+		warningCol:   session.Database(dbName).Collection(warningCol),
+		adviceCol:    session.Database(dbName).Collection(adviceCol),
+		picCol:       session.Database(dbName).Collection(picCol),
+		ruLocCol:     session.Database(dbName).Collection(ruLocCol),
 		dailyTaroCol: session.Database(dbName).Collection(dalyTaro),
 	}
 
@@ -196,7 +199,6 @@ func (d *db) SaveDailyTaro(cardID string, userID int64, ctx context.Context) err
 		return err
 	}
 
-
 	if taro.UserID == 0 {
 		_, err := d.dailyTaroCol.InsertOne(ctx, structs.DailyTaro{
 			UserID:    userID,
@@ -231,4 +233,15 @@ func (d *db) GetSavedDailyTaro(userID int64, ctx context.Context) (res structs.D
 	}
 
 	return
+}
+
+func (d *db) CanGetNewDailyTaro(ctx context.Context, userID int64) bool {
+	taro, err := d.GetSavedDailyTaro(userID, ctx)
+	if err != nil {
+		d.logger.Error("error getting saved daily taro", zap.Error(err))
+		return true
+	}
+
+	// stole this part of code from zhanna2
+	return int(time.Now().Sub(taro.CreatedAt).Hours())/20 >= 1
 }
