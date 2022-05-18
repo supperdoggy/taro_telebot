@@ -12,15 +12,16 @@ type IHandlers interface {
 
 type handlers struct {
 	service service.IService
-	bot *telebot.Bot
+	bot     *telebot.Bot
 
 	logger *zap.Logger
 }
 
-func NewHandlers(s *service.IService, l *zap.Logger) IHandlers {
+func NewHandlers(s *service.IService, l *zap.Logger, b *telebot.Bot) IHandlers {
 	return &handlers{
 		service: *s,
 		logger:  l,
+		bot:     b,
 	}
 }
 
