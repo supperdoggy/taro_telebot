@@ -212,6 +212,7 @@ func (d *db) SaveDailyTaro(cardID string, userID int64, ctx context.Context) err
 
 	// if did not find taro we create new record
 	if err == mongo.ErrNoDocuments {
+		d.logger.Info("creating new record")
 		_, err := d.dailyTaroCol.InsertOne(ctx, structs.DailyTaro{
 			UserID:    userID,
 			CardID:    cardID,
@@ -227,11 +228,12 @@ func (d *db) SaveDailyTaro(cardID string, userID int64, ctx context.Context) err
 	// if have then update the record
 
 	update := obj{"$set": obj{"card_id": cardID, "created_at": time.Now()}}
-	cur := d.dailyTaroCol.FindOneAndUpdate(ctx, obj{"user_id": userID}, update)
-	if cur.Err() != nil {
-		d.logger.Error("error saving daily taro", zap.Error(cur.Err()))
-		return cur.Err()
+	updres, err := d.dailyTaroCol.UpdateOne(ctx, obj{"user_id": userID}, update)
+	if err != nil {
+		d.logger.Error("error saving daily taro", zap.Error(err))
+		return err
 	}
+	d.logger.Info("updated res", zap.Any("res", updres), zap.Any("update", update))
 
 	return err
 }
@@ -262,9 +264,9 @@ func (d *db) CanGetNewDailyTaro(ctx context.Context, userID int64) bool {
 		return true
 	}
 
+	now := time.Now()
 	// stole this part of code from zhanna2
-	// check if 20 hours passed??
-	return int(time.Now().Sub(taro.CreatedAt).Hours())/20 >= 1
+	return taro.CreatedAt.Day() != now.Day() || taro.CreatedAt.Month() != now.Month() || taro.CreatedAt.Year() != now.Year()
 }
 
 func (d *db) CreateDailyTaroHistory(ctx context.Context, userID int64, cardID string) error {

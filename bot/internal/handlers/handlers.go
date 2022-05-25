@@ -26,6 +26,7 @@ func NewHandlers(s *service.IService, l *zap.Logger, b *telebot.Bot) IHandlers {
 }
 
 func (h *handlers) GetRandomDailyTaro(m *telebot.Message) {
+	h.logger.Info("got message from", zap.Any("id", m.Sender.ID))
 	result, err := h.service.DailyTaro(m.Sender.ID)
 	if err != nil {
 		h.logger.Error("error DailyTaro", zap.Error(err))
