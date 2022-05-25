@@ -196,13 +196,22 @@ func (d *db) GetTaroLoc(ctx context.Context, id string) (pic structs.TaroLoc, er
 }
 
 func (d *db) SaveDailyTaro(cardID string, userID int64, ctx context.Context) error {
-	taro, err := d.GetSavedDailyTaro(userID, ctx)
+	// save to history
+	err := d.CreateDailyTaroHistory(ctx, userID, cardID)
+	if err != nil {
+		d.logger.Error("error creating history record", zap.Error(err))
+		return err
+	}
+
+	// check if we already have record with saved daily taro
+	_, err = d.GetSavedDailyTaro(userID, ctx)
 	if err != nil && err != mongo.ErrNoDocuments {
 		d.logger.Error("error getting saved daily taro", zap.Error(err))
 		return err
 	}
 
-	if taro.UserID == 0 {
+	// if did not find taro we create new record
+	if err == mongo.ErrNoDocuments {
 		_, err := d.dailyTaroCol.InsertOne(ctx, structs.DailyTaro{
 			UserID:    userID,
 			CardID:    cardID,
@@ -215,12 +224,16 @@ func (d *db) SaveDailyTaro(cardID string, userID int64, ctx context.Context) err
 		return nil
 	}
 
+	// if have then update the record
+
 	update := obj{"$set": obj{"card_id": cardID, "created_at": time.Now()}}
 	cur := d.dailyTaroCol.FindOneAndUpdate(ctx, obj{"user_id": userID}, update)
 	if cur.Err() != nil {
 		d.logger.Error("error saving daily taro", zap.Error(cur.Err()))
+		return cur.Err()
 	}
-	return cur.Err()
+
+	return err
 }
 
 func (d *db) GetSavedDailyTaro(userID int64, ctx context.Context) (res structs.DailyTaro, err error) {
@@ -235,18 +248,22 @@ func (d *db) GetSavedDailyTaro(userID int64, ctx context.Context) (res structs.D
 		return
 	}
 
+	if res.CardID == "" {
+		return res, mongo.ErrNoDocuments
+	}
+
 	return
 }
 
 func (d *db) CanGetNewDailyTaro(ctx context.Context, userID int64) bool {
 	taro, err := d.GetSavedDailyTaro(userID, ctx)
-	if err != nil {
+	if err != nil && err != mongo.ErrNoDocuments {
 		d.logger.Error("error getting saved daily taro", zap.Error(err))
 		return true
 	}
 
 	// stole this part of code from zhanna2
-	// check if 20 hours passed
+	// check if 20 hours passed??
 	return int(time.Now().Sub(taro.CreatedAt).Hours())/20 >= 1
 }
 

@@ -19,23 +19,28 @@ func main() {
 
 	db, err := db2.NewDB(logger, cfg.DBUrl, cfg.DBName,
 		cfg.WarningCollectionName, cfg.AdviceCollectionName,
-		cfg.PicCollectionName, cfg.RuLocCollectionName, cfg.DailyTaroCollectionName, ctx)
+		cfg.PicCollectionName, cfg.RuLocCollectionName, cfg.DailyTaroCollectionName, cfg.DailyTaroHistoryCollectionName, ctx)
 	if err != nil {
 		logger.Fatal("error setting db", zap.Error(err), zap.Any("cfg", cfg))
 	}
+
+	logger.Info("successfully connected to the db")
 
 	bot, err := telebot.NewBot(telebot.Settings{
 		Token:  cfg.Token,
 		Poller: &telebot.LongPoller{Timeout: 1 * time.Millisecond},
 	})
 
-	service := service2.NewService(&db, logger)
-	handlers := handlers2.NewHandlers(&service, logger, bot)
-
 	if err != nil {
 		logger.Fatal("error connecting to bot", zap.Error(err))
 	}
+
+	service := service2.NewService(&db, logger)
+	handlers := handlers2.NewHandlers(&service, logger, bot)
+
 	bot.Handle("/start", handlers.GetRandomDailyTaro)
+
+	logger.Info("the bot is running!!!")
 
 	bot.Start()
 }
