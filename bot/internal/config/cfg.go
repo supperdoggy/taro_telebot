@@ -9,16 +9,17 @@ import (
 var config appConfig
 
 type appConfig struct {
-	DBUrl                 string `json:"db_url"`
-	DBName                string `json:"db_name"`
-	WarningCollectionName string `json:"warning_collection_name"`
-	AdviceCollectionName  string `json:"advice_collection_name"`
-	PicCollectionName     string `json:"pic_collection_name"`
-	RuLocCollectionName   string `json:"ru_loc_collection_name"`
-	DailyTaroCollectionName string `json:"daily_taro_collection_name"`
+	DBUrl                          string `json:"db_url"`
+	DBName                         string `json:"db_name"`
+	WarningCollectionName          string `json:"warning_collection_name"`
+	AdviceCollectionName           string `json:"advice_collection_name"`
+	PicCollectionName              string `json:"pic_collection_name"`
+	RuLocCollectionName            string `json:"ru_loc_collection_name"`
+	DailyTaroCollectionName        string `json:"daily_taro_collection_name"`
+	DailyTaroHistoryCollectionName string `json:"daily_taro_history_collection_name"`
 
-	IsProd bool `json:"is_prod"`
-	Token string `json:"token"`
+	IsProd bool   `json:"is_prod"`
+	Token  string `json:"token"`
 }
 
 func init() {

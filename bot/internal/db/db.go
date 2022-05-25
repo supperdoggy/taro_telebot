@@ -22,11 +22,12 @@ type IDB interface {
 type db struct {
 	session *mongo.Client
 
-	warningCol   *mongo.Collection
-	adviceCol    *mongo.Collection
-	ruLocCol     *mongo.Collection
-	picCol       *mongo.Collection
-	dailyTaroCol *mongo.Collection
+	warningCol      *mongo.Collection
+	adviceCol       *mongo.Collection
+	ruLocCol        *mongo.Collection
+	picCol          *mongo.Collection
+	dailyTaroCol    *mongo.Collection
+	dailyHistoryCol *mongo.Collection
 
 	logger *zap.Logger
 }
@@ -34,21 +35,23 @@ type db struct {
 type obj map[string]interface{}
 type arr []interface{}
 
-func NewDB(l *zap.Logger, url, dbName, warningCol, adviceCol, picCol, ruLocCol, dalyTaro string, ctx context.Context) (IDB, error) {
+func NewDB(l *zap.Logger, url, dbName, warningCol, adviceCol, picCol, ruLocCol, dalyTaro, dailyHistory string, ctx context.Context) (IDB, error) {
 	session, err := mongo.Connect(ctx)
 	if err != nil {
 		return nil, err
 	}
+	database := session.Database(dbName)
 
 	d := db{
 		session: session,
 		logger:  l,
 
-		warningCol:   session.Database(dbName).Collection(warningCol),
-		adviceCol:    session.Database(dbName).Collection(adviceCol),
-		picCol:       session.Database(dbName).Collection(picCol),
-		ruLocCol:     session.Database(dbName).Collection(ruLocCol),
-		dailyTaroCol: session.Database(dbName).Collection(dalyTaro),
+		warningCol:      database.Collection(warningCol),
+		adviceCol:       database.Collection(adviceCol),
+		picCol:          database.Collection(picCol),
+		ruLocCol:        database.Collection(ruLocCol),
+		dailyTaroCol:    database.Collection(dalyTaro),
+		dailyHistoryCol: database.Collection(dailyHistory),
 	}
 
 	return &d, nil
@@ -243,5 +246,21 @@ func (d *db) CanGetNewDailyTaro(ctx context.Context, userID int64) bool {
 	}
 
 	// stole this part of code from zhanna2
+	// check if 20 hours passed
 	return int(time.Now().Sub(taro.CreatedAt).Hours())/20 >= 1
+}
+
+func (d *db) CreateDailyTaroHistory(ctx context.Context, userID int64, cardID string) error {
+	record := structs.DailyTaro{
+		UserID:    userID,
+		CardID:    cardID,
+		CreatedAt: time.Now(),
+	}
+	_, err := d.dailyHistoryCol.InsertOne(ctx, record)
+	if err != nil {
+		d.logger.Error("error inserting daily taro history", zap.Error(err))
+		return err
+	}
+
+	return nil
 }
