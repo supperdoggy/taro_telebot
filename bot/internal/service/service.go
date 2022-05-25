@@ -34,7 +34,7 @@ func (s *service) DailyTaro(userID int64) (*telebot.Photo, error) {
 		err  error
 	)
 	can := s.db.CanGetNewDailyTaro(ctx, userID)
-	if !can {
+	if !can { // get saved one
 		var daily structs.DailyTaro
 		daily, err = s.db.GetSavedDailyTaro(userID, ctx)
 		if err != nil {
@@ -42,7 +42,7 @@ func (s *service) DailyTaro(userID int64) (*telebot.Photo, error) {
 		}
 
 		taro, err = s.db.GetTaro(ctx, daily.CardID)
-	} else {
+	} else { // get new taro
 		taro, err = s.db.GetRandomTaro(ctx)
 		err = s.db.SaveDailyTaro(taro.ID, userID, ctx)
 		if err != nil {

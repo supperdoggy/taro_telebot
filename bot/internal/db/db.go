@@ -22,11 +22,12 @@ type IDB interface {
 type db struct {
 	session *mongo.Client
 
-	warningCol   *mongo.Collection
-	adviceCol    *mongo.Collection
-	ruLocCol     *mongo.Collection
-	picCol       *mongo.Collection
-	dailyTaroCol *mongo.Collection
+	warningCol      *mongo.Collection
+	adviceCol       *mongo.Collection
+	ruLocCol        *mongo.Collection
+	picCol          *mongo.Collection
+	dailyTaroCol    *mongo.Collection
+	dailyHistoryCol *mongo.Collection
 
 	logger *zap.Logger
 }
@@ -34,21 +35,23 @@ type db struct {
 type obj map[string]interface{}
 type arr []interface{}
 
-func NewDB(l *zap.Logger, url, dbName, warningCol, adviceCol, picCol, ruLocCol, dalyTaro string, ctx context.Context) (IDB, error) {
+func NewDB(l *zap.Logger, url, dbName, warningCol, adviceCol, picCol, ruLocCol, dalyTaro, dailyHistory string, ctx context.Context) (IDB, error) {
 	session, err := mongo.Connect(ctx)
 	if err != nil {
 		return nil, err
 	}
+	database := session.Database(dbName)
 
 	d := db{
 		session: session,
 		logger:  l,
 
-		warningCol:   session.Database(dbName).Collection(warningCol),
-		adviceCol:    session.Database(dbName).Collection(adviceCol),
-		picCol:       session.Database(dbName).Collection(picCol),
-		ruLocCol:     session.Database(dbName).Collection(ruLocCol),
-		dailyTaroCol: session.Database(dbName).Collection(dalyTaro),
+		warningCol:      database.Collection(warningCol),
+		adviceCol:       database.Collection(adviceCol),
+		picCol:          database.Collection(picCol),
+		ruLocCol:        database.Collection(ruLocCol),
+		dailyTaroCol:    database.Collection(dalyTaro),
+		dailyHistoryCol: database.Collection(dailyHistory),
 	}
 
 	return &d, nil
@@ -193,13 +196,22 @@ func (d *db) GetTaroLoc(ctx context.Context, id string) (pic structs.TaroLoc, er
 }
 
 func (d *db) SaveDailyTaro(cardID string, userID int64, ctx context.Context) error {
-	taro, err := d.GetSavedDailyTaro(userID, ctx)
+	// save to history
+	err := d.CreateDailyTaroHistory(ctx, userID, cardID)
+	if err != nil {
+		d.logger.Error("error creating history record", zap.Error(err))
+		return err
+	}
+
+	// check if we already have record with saved daily taro
+	_, err = d.GetSavedDailyTaro(userID, ctx)
 	if err != nil && err != mongo.ErrNoDocuments {
 		d.logger.Error("error getting saved daily taro", zap.Error(err))
 		return err
 	}
 
-	if taro.UserID == 0 {
+	// if did not find taro we create new record
+	if err == mongo.ErrNoDocuments {
 		_, err := d.dailyTaroCol.InsertOne(ctx, structs.DailyTaro{
 			UserID:    userID,
 			CardID:    cardID,
@@ -212,12 +224,16 @@ func (d *db) SaveDailyTaro(cardID string, userID int64, ctx context.Context) err
 		return nil
 	}
 
+	// if have then update the record
+
 	update := obj{"$set": obj{"card_id": cardID, "created_at": time.Now()}}
 	cur := d.dailyTaroCol.FindOneAndUpdate(ctx, obj{"user_id": userID}, update)
 	if cur.Err() != nil {
 		d.logger.Error("error saving daily taro", zap.Error(cur.Err()))
+		return cur.Err()
 	}
-	return cur.Err()
+
+	return err
 }
 
 func (d *db) GetSavedDailyTaro(userID int64, ctx context.Context) (res structs.DailyTaro, err error) {
@@ -232,16 +248,36 @@ func (d *db) GetSavedDailyTaro(userID int64, ctx context.Context) (res structs.D
 		return
 	}
 
+	if res.CardID == "" {
+		return res, mongo.ErrNoDocuments
+	}
+
 	return
 }
 
 func (d *db) CanGetNewDailyTaro(ctx context.Context, userID int64) bool {
 	taro, err := d.GetSavedDailyTaro(userID, ctx)
-	if err != nil {
+	if err != nil && err != mongo.ErrNoDocuments {
 		d.logger.Error("error getting saved daily taro", zap.Error(err))
 		return true
 	}
 
 	// stole this part of code from zhanna2
+	// check if 20 hours passed??
 	return int(time.Now().Sub(taro.CreatedAt).Hours())/20 >= 1
+}
+
+func (d *db) CreateDailyTaroHistory(ctx context.Context, userID int64, cardID string) error {
+	record := structs.DailyTaro{
+		UserID:    userID,
+		CardID:    cardID,
+		CreatedAt: time.Now(),
+	}
+	_, err := d.dailyHistoryCol.InsertOne(ctx, record)
+	if err != nil {
+		d.logger.Error("error inserting daily taro history", zap.Error(err))
+		return err
+	}
+
+	return nil
 }
