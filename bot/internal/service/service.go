@@ -3,9 +3,9 @@ package service
 import (
 	"bytes"
 	"context"
-	"fmt"
 
 	db2 "github.com/supperdoggy/taro-pizda/bot/internal/db"
+	localization "github.com/supperdoggy/taro-pizda/bot/internal/loc"
 	"github.com/supperdoggy/taro-pizda/structs"
 	"go.uber.org/zap"
 	"gopkg.in/tucnak/telebot.v2"
@@ -56,9 +56,10 @@ func (s *service) DailyTaro(userID int64) (*telebot.Photo, error) {
 		return nil, err
 	}
 
+	cap := localization.GetLoc("daily_taro", taro.Loc.Value, taro.Advice.Value, taro.Warning.Value)
 	res := telebot.Photo{
 		File:    telebot.FromReader(bytes.NewReader(taro.Pic.Data)),
-		Caption: fmt.Sprintf("*Ваша карта дня*: %s\n\n*Совет дня*: %s\n\n*Предостережение дня*: %s", taro.Loc.Value, taro.Advice.Value, taro.Warning.Value),
+		Caption: cap,
 	}
 
 	return &res, nil
